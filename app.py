@@ -5,7 +5,7 @@ from flask import Flask, request, render_template, send_file, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
 from pdf2docx import Converter
-from docx2pdf import convert as docx2pdf_convert
+import subprocess
 import tempfile
 
 app = Flask(__name__)
@@ -20,7 +20,7 @@ ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'pdf', 'docx'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32 MB limit
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -47,8 +47,16 @@ def pdf_to_word(input_path, output_path):
 
 def word_to_pdf(input_path, output_path):
     try:
-        docx2pdf_convert(input_path, output_path)
+        # Use LibreOffice for conversion
+        subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', 
+                        os.path.dirname(output_path), input_path], 
+                       check=True, capture_output=True)
+        # Rename the output file to match the expected output_path
+        os.rename(os.path.splitext(input_path)[0] + '.pdf', output_path)
         return output_path
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"Error converting {input_path} to PDF: {e.stderr.decode()}")
+        raise
     except Exception as e:
         app.logger.error(f"Error converting {input_path} to PDF: {str(e)}")
         raise
