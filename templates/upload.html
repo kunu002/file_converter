@@ -1,0 +1,215 @@
+<!doctype html>
+<html>
+<head>
+    <title>File Conversion</title>
+    <style>
+        #loading, #error {
+            display: none;
+        }
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+        
+            body {
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background-color: #f4f4f4;
+                padding: 20px;
+            }
+        
+            .container {
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #fff;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+        
+            h1 {
+                text-align: center;
+                margin-bottom: 30px;
+                color: #2c3e50;
+            }
+        
+            form {
+                display: flex;
+                flex-direction: column;
+            }
+        
+            label {
+                margin-bottom: 10px;
+                font-weight: bold;
+            }
+        
+            select, input[type="file"], input[type="submit"] {
+                margin-bottom: 20px;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 16px;
+            }
+        
+            select {
+                background-color: #fff;
+            }
+        
+            input[type="submit"] {
+                background-color: #3498db;
+                color: #fff;
+                border: none;
+                cursor: pointer;
+                transition: background-color 0.3s ease;
+            }
+        
+            input[type="submit"]:hover {
+                background-color: #2980b9;
+            }
+        
+            #loading, #error {
+                text-align: center;
+                margin-top: 20px;
+                padding: 10px;
+                border-radius: 4px;
+            }
+        
+            #loading {
+                background-color: #f1c40f;
+                color: #333;
+            }
+        
+            #error {
+                background-color: #e74c3c;
+                color: #fff;
+            }
+        
+            @media (max-width: 768px) {
+                .container {
+                    padding: 20px;
+                }
+        
+                h1 {
+                    font-size: 24px;
+                }
+        
+                select, input[type="file"], input[type="submit"] {
+                    font-size: 14px;
+                }
+            }
+        </style>
+    </style>
+</head>
+<body>
+    <h1>File Conversion</h1>
+    <form id="conversionForm" method="post" enctype="multipart/form-data">
+        <label for="conversion">Select conversion type:</label>
+        <select name="conversion" id="conversion">
+            <option value="jpg_to_pdf">JPG to PDF</option>
+            <option value="pdf_to_word">PDF to Word</option>
+            <option value="word_to_pdf">Word to PDF</option>
+        </select>
+        <br><br>
+        <input type="file" name="file" id="fileInput">
+        <input type="submit" value="Convert">
+    </form>
+    <div id="loading">Converting... Please wait.</div>
+    <div id="error"></div>
+
+    <script>
+            document.getElementById('conversionForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const fileInput = document.getElementById('fileInput');
+                const conversionType = document.getElementById('conversion').value;
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    showError('Please select a file.');
+                    return;
+                }
+                
+                if (!validateFileType(conversionType, file.name)) {
+                    showError('Invalid file type for the selected conversion.');
+                    return;
+                }
+                
+                showLoading();
+        
+                const formData = new FormData(this);
+                
+                fetch('/', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw err; });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    hideLoading();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'converted_file' + getFileExtension(conversionType);
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError(error.error || 'An error occurred during conversion.');
+                });
+            });
+        
+            function validateFileType(conversionType, fileName) {
+                const extension = fileName.split('.').pop().toLowerCase();
+                switch (conversionType) {
+                    case 'jpg_to_pdf':
+                        return extension === 'jpg' || extension === 'jpeg';
+                    case 'pdf_to_word':
+                        return extension === 'pdf';
+                    case 'word_to_pdf':
+                        return extension === 'docx';
+                    default:
+                        return false;
+                }
+            }
+        
+            function getFileExtension(conversionType) {
+                switch (conversionType) {
+                    case 'jpg_to_pdf':
+                    case 'word_to_pdf':
+                        return '.pdf';
+                    case 'pdf_to_word':
+                        return '.docx';
+                    default:
+                        return '';
+                }
+            }
+        
+            function showLoading() {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+            }
+        
+            function hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+            }
+        
+            function showError(message) {
+                const errorDiv = document.getElementById('error');
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                document.getElementById('loading').style.display = 'none';
+            }
+
+    </script>
+</body>
+</html>
