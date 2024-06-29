@@ -5,6 +5,10 @@ from werkzeug.utils import secure_filename
 from PIL import Image
 from pdf2docx import Converter
 import subprocess
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
 
 app = Flask(__name__)
 
