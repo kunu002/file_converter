@@ -3,5 +3,5 @@ services:
     name: file-converter
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn 'converter:app'
+    startCommand: gunicorn 'app:app'
     plan: free
