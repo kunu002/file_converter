@@ -4,4 +4,6 @@ gunicorn
 docx2pdf
 flask
 Flask
+flask_cors
+
 
