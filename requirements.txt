@@ -4,3 +4,4 @@ gunicorn
 docx2pdf
 flask
 gunicorn
+pythoncom
