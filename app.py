@@ -10,8 +10,6 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-app = Flask(__name__)
-
 UPLOAD_FOLDER = '/tmp/uploads'
 OUTPUT_FOLDER = '/tmp/outputs'
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'pdf', 'docx'}
