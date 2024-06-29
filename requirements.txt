@@ -3,5 +3,5 @@ pdf2docx
 gunicorn
 docx2pdf
 flask
-gunicorn
-pythoncom
+Flask
+
