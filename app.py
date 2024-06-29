@@ -1,15 +1,11 @@
 import os
 import uuid
 import logging
-import io
 from flask import Flask, request, render_template, send_file, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
-from pdf2docx import Converter as PDFToWordConverter
-from docx import Document
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
+from pdf2docx import Converter
+import subprocess
 import tempfile
 
 app = Flask(__name__)
@@ -41,7 +37,7 @@ def jpg_to_pdf(input_path, output_path):
 
 def pdf_to_word(input_path, output_path):
     try:
-        cv = PDFToWordConverter(input_path)
+        cv = Converter(input_path)
         cv.convert(output_path, start=0, end=None)
         cv.close()
         return output_path
@@ -51,29 +47,16 @@ def pdf_to_word(input_path, output_path):
 
 def word_to_pdf(input_path, output_path):
     try:
-        # Read the Word document
-        doc = Document(input_path)
-        
-        # Create a PDF
-        pdf_buffer = io.BytesIO()
-        pdf = SimpleDocTemplate(pdf_buffer, pagesize=letter)
-        
-        # Create story (content) for the PDF
-        styles = getSampleStyleSheet()
-        story = []
-        
-        for para in doc.paragraphs:
-            p = Paragraph(para.text, styles['Normal'])
-            story.append(p)
-        
-        # Build the PDF
-        pdf.build(story)
-        
-        # Save the PDF
-        with open(output_path, 'wb') as f:
-            f.write(pdf_buffer.getvalue())
-        
+        # Use LibreOffice for conversion
+        subprocess.run(['libreoffice', '--headless', '--convert-to', 'pdf', '--outdir', 
+                        os.path.dirname(output_path), input_path], 
+                       check=True, capture_output=True)
+        # Rename the output file to match the expected output_path
+        os.rename(os.path.splitext(input_path)[0] + '.pdf', output_path)
         return output_path
+    except subprocess.CalledProcessError as e:
+        app.logger.error(f"Error converting {input_path} to PDF: {e.stderr.decode()}")
+        raise
     except Exception as e:
         app.logger.error(f"Error converting {input_path} to PDF: {str(e)}")
         raise
