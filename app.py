@@ -1,21 +1,26 @@
 import os
 import uuid
+import logging
 from flask import Flask, request, render_template, send_file, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
 from pdf2docx import Converter
-import subprocess
-from flask_cors import CORS
+from docx2pdf import convert as docx2pdf_convert
+import tempfile
 
 app = Flask(__name__)
-CORS(app)
 
-UPLOAD_FOLDER = '/tmp/uploads'
-OUTPUT_FOLDER = '/tmp/outputs'
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Use temporary directory for file operations
+UPLOAD_FOLDER = tempfile.gettempdir()
+OUTPUT_FOLDER = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'pdf', 'docx'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -27,7 +32,8 @@ def jpg_to_pdf(input_path, output_path):
         image.save(pdf_path, "PDF", resolution=100.0)
         return pdf_path
     except Exception as e:
-        raise Exception(f"Error converting {input_path} to PDF: {str(e)}")
+        app.logger.error(f"Error converting {input_path} to PDF: {str(e)}")
+        raise
 
 def pdf_to_word(input_path, output_path):
     try:
@@ -36,15 +42,16 @@ def pdf_to_word(input_path, output_path):
         cv.close()
         return output_path
     except Exception as e:
-        raise Exception(f"Error converting {input_path} to Word: {str(e)}")
+        app.logger.error(f"Error converting {input_path} to Word: {str(e)}")
+        raise
 
 def word_to_pdf(input_path, output_path):
     try:
-        from docx2pdf import convert
-        convert(input_path, output_path)
+        docx2pdf_convert(input_path, output_path)
         return output_path
     except Exception as e:
-        raise Exception(f"Error converting {input_path} to PDF: {str(e)}")
+        app.logger.error(f"Error converting {input_path} to PDF: {str(e)}")
+        raise
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -75,17 +82,24 @@ def upload_file():
                 
                 return send_file(output_path, as_attachment=True)
             except Exception as e:
-                return jsonify({'error': str(e)}), 500
+                app.logger.error(f"Conversion error: {str(e)}")
+                return jsonify({'error': 'An error occurred during conversion'}), 500
             finally:
-                # Remove input file
+                # Clean up input file
                 if os.path.exists(input_path):
                     os.remove(input_path)
+                # Clean up output file after sending
+                if 'output_path' in locals() and os.path.exists(output_path):
+                    os.remove(output_path)
         else:
             return jsonify({'error': 'Invalid file type'}), 400
     
     return render_template('upload.html')
 
+@app.errorhandler(500)
+def internal_server_error(error):
+    app.logger.error(f"An internal error occurred: {str(error)}")
+    return jsonify(error="An internal server error occurred"), 500
+
 if __name__ == '__main__':
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     app.run(debug=True)
