@@ -1,21 +1,15 @@
 import os
 import uuid
-from datetime import datetime, timedelta
 from flask import Flask, request, render_template, send_file, jsonify
 from werkzeug.utils import secure_filename
 from PIL import Image
 from pdf2docx import Converter
-import pythoncom
-from docx2pdf import convert
-import threading
-
-# Initialize COM
-pythoncom.CoInitialize()
+import subprocess
 
 app = Flask(__name__)
 
-UPLOAD_FOLDER = 'uploads'
-OUTPUT_FOLDER = 'outputs'
+UPLOAD_FOLDER = '/tmp/uploads'
+OUTPUT_FOLDER = '/tmp/outputs'
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'pdf', 'docx'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -43,19 +37,12 @@ def pdf_to_word(input_path, output_path):
         raise Exception(f"Error converting {input_path} to Word: {str(e)}")
 
 def word_to_pdf(input_path, output_path):
-    def convert_thread():
-        pythoncom.CoInitialize()
-        try:
-            convert(input_path, output_path)
-        except Exception as e:
-            raise Exception(f"Error converting {input_path} to PDF: {str(e)}")
-        finally:
-            pythoncom.CoUninitialize()
-
-    thread = threading.Thread(target=convert_thread)
-    thread.start()
-    thread.join()
-    return output_path
+    try:
+        from docx2pdf import convert
+        convert(input_path, output_path)
+        return output_path
+    except Exception as e:
+        raise Exception(f"Error converting {input_path} to PDF: {str(e)}")
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -68,7 +55,7 @@ def upload_file():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             unique_id = str(uuid.uuid4())
-            input_path = os.path.abspath(os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_{filename}"))
+            input_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{unique_id}_{filename}")
             file.save(input_path)
             
             conversion_type = request.form['conversion']
@@ -76,11 +63,11 @@ def upload_file():
             
             try:
                 if conversion_type == 'jpg_to_pdf':
-                    output_path = jpg_to_pdf(input_path, os.path.abspath(os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.pdf")))
+                    output_path = jpg_to_pdf(input_path, os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.pdf"))
                 elif conversion_type == 'pdf_to_word':
-                    output_path = pdf_to_word(input_path, os.path.abspath(os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.docx")))
+                    output_path = pdf_to_word(input_path, os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.docx"))
                 elif conversion_type == 'word_to_pdf':
-                    output_path = word_to_pdf(input_path, os.path.abspath(os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.pdf")))
+                    output_path = word_to_pdf(input_path, os.path.join(app.config['OUTPUT_FOLDER'], f"{output_filename}.pdf"))
                 else:
                     return jsonify({'error': 'Invalid conversion type'}), 400
                 
@@ -96,21 +83,7 @@ def upload_file():
     
     return render_template('upload.html')
 
-def cleanup_old_files():
-    current_time = datetime.now()
-    for folder in [UPLOAD_FOLDER, OUTPUT_FOLDER]:
-        for filename in os.listdir(folder):
-            file_path = os.path.join(folder, filename)
-            file_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
-            if current_time - file_modified > timedelta(minutes=30):
-                try:
-                    os.remove(file_path)
-                except:
-                    pass  
-
 if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(OUTPUT_FOLDER, exist_ok=True)
     app.run(debug=True)
-    cleanup_old_files()
-    pythoncom.CoUninitialize()  # Uninitialize COM when the application exits
